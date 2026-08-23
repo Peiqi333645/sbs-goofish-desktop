@@ -1,0 +1,62 @@
+{
+  "name": "sbs-goofish-desktop",
+  "version": "0.1.0",
+  "description": "SBS闲鱼助手桌面客户端",
+  "main": "main.js",
+  "author": "Peiqi333645",
+  "license": "MIT",
+  "scripts": {
+    "dist": "electron-builder --publish never"
+  },
+  "devDependencies": {
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.sbs.goofish",
+    "productName": "SBS闲鱼助手",
+    "asar": true,
+    "artifactName": "SBS-Goofish-${version}-${os}-${arch}.${ext}",
+    "files": [
+      "main.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend-dist/sbs-goofish-backend",
+        "to": "backend"
+      },
+      {
+        "from": "playwright-browsers",
+        "to": "playwright-browsers"
+      }
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["arm64"]
+        }
+      ],
+      "identity": null
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}
