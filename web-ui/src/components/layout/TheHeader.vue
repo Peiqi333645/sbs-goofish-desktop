@@ -4,14 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
 import DashboardTaskSearch from '@/components/layout/DashboardTaskSearch.vue'
 import LocaleToggle from '@/components/layout/LocaleToggle.vue'
-import { 
-  Zap, 
-  Bell, 
-  Search, 
-  UserCircle,
-  HelpCircle,
-  Menu
-} from 'lucide-vue-next'
+import BrandIcon from '@/assets/sbs-brand.svg'
+import { Bell, Search, UserCircle, HelpCircle, Menu } from 'lucide-vue-next'
 import Badge from '@/components/ui/badge/Badge.vue'
 import { useMobileNav } from '@/composables/useMobileNav'
 import { useI18n } from 'vue-i18n'
@@ -21,113 +15,39 @@ const route = useRoute()
 const { toggleMobileNav } = useMobileNav()
 const inactiveSearchValue = ref('')
 const { t } = useI18n()
-
 const isDashboard = computed(() => route.name === 'Dashboard')
-
-function goAccounts() {
-  router.push('/accounts')
-}
-
-function goNotifications() {
-  router.push({ name: 'Settings', query: { tab: 'notifications' } })
-}
-
-function goPrompts() {
-  router.push({ name: 'Settings', query: { tab: 'prompts' } })
-}
+const goAccounts = () => router.push('/accounts')
+const goNotifications = () => router.push({ name: 'Settings', query: { tab: 'notifications' } })
+const goPrompts = () => router.push({ name: 'Settings', query: { tab: 'prompts' } })
 </script>
 
 <template>
-  <header class="flex items-center justify-between px-6 h-16 bg-white/60 backdrop-blur-md border-b border-slate-200/60 sticky top-0 z-[100]">
-    <!-- Brand Logo -->
-    <RouterLink
-      to="/dashboard"
-      class="flex items-center gap-2 group rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-      :aria-label="t('header.goHome')"
-    >
-      <div class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shadow-lg shadow-primary/20 transition-transform group-hover:rotate-12">
-        <Zap class="w-5 h-5 text-white fill-white" />
+  <header class="sticky top-0 z-[100] flex h-16 items-center justify-between border-b border-amber-400/20 bg-[#222222]/95 px-6 text-white backdrop-blur-xl">
+    <RouterLink to="/dashboard" class="group flex items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" :aria-label="t('header.goHome')">
+      <img :src="BrandIcon" alt="" class="brand-grid h-9 w-9 rounded-xl transition-transform group-hover:scale-105" />
+      <div>
+        <h1 class="text-[15px] font-black tracking-wide text-white">SBS<span class="text-primary">闲鱼助手</span></h1>
+        <p class="text-[9px] font-semibold tracking-[.24em] text-white/45">SMART MONITOR</p>
       </div>
-      <h1 class="text-lg font-black text-slate-800 tracking-tighter">
-        AI <span class="text-primary">Xianyu</span> Hunter
-      </h1>
-      <Badge variant="outline" class="ml-2 text-[10px] font-bold border-primary/20 text-primary bg-primary/5 uppercase tracking-widest hidden sm:flex">
-        PRO
-      </Badge>
+      <Badge variant="outline" class="ml-1 hidden border-primary/35 bg-primary/10 text-[9px] font-black text-primary sm:flex">DESKTOP</Badge>
     </RouterLink>
-
-    <!-- Search & Navigation -->
-    <div class="hidden md:flex flex-grow max-w-md mx-8">
+    <div class="mx-8 hidden max-w-md flex-grow md:flex">
       <DashboardTaskSearch v-if="isDashboard" />
-      <div v-else class="relative w-full group">
-        <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 transition-colors" />
-        <input 
-          type="text" 
-          v-model="inactiveSearchValue"
-          readonly
-          aria-disabled="true"
-          :placeholder="t('header.searchUnavailable')"
-          class="w-full h-10 pl-10 pr-4 bg-slate-100/50 border border-slate-200/50 rounded-xl text-sm transition-all focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary/50"
-        />
-        <kbd class="absolute right-3 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded border border-slate-300 bg-white text-[10px] text-slate-400 font-sans shadow-sm pointer-events-none">
-          /
-        </kbd>
+      <div v-else class="group relative w-full">
+        <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+        <input v-model="inactiveSearchValue" readonly aria-disabled="true" :placeholder="t('header.searchUnavailable')" class="h-10 w-full rounded-xl border border-white/10 bg-white/5 pl-10 pr-4 text-sm text-white placeholder:text-white/35 focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/20" />
       </div>
     </div>
-
-    <!-- Actions -->
-    <div class="flex items-center gap-3">
-      <div class="flex items-center gap-2">
-        <LocaleToggle />
-      </div>
-
-      <div class="flex items-center gap-1 sm:gap-2">
-         <Button
-           variant="ghost"
-           size="icon"
-           class="rounded-full text-slate-500 hover:text-primary hover:bg-primary/10"
-           :aria-label="t('header.openNotifications')"
-           @click="goNotifications"
-         >
-            <Bell class="w-5 h-5" />
-         </Button>
-         <Button
-           variant="ghost"
-           size="icon"
-           class="rounded-full text-slate-500 hover:text-primary hover:bg-primary/10"
-           :aria-label="t('header.openPrompts')"
-           @click="goPrompts"
-         >
-            <HelpCircle class="w-5 h-5" />
-         </Button>
-      </div>
-      
-      <div class="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
-
-      <Button 
-        variant="ghost" 
-        class="hidden sm:flex items-center gap-2 pl-2 pr-4 rounded-full hover:bg-slate-100 transition-all active:scale-95"
-        :aria-label="t('header.openAccounts')"
-        @click="goAccounts"
-      >
-        <div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden border border-slate-300 shadow-sm">
-           <UserCircle class="w-6 h-6 text-slate-500" />
-        </div>
-        <div class="text-left hidden lg:block">
-           <p class="text-xs font-black text-slate-700 leading-none mb-0.5">Xianyu Admin</p>
-           <p class="text-[10px] text-slate-400 font-medium">{{ t('header.accountManagement') }}</p>
-        </div>
+    <div class="flex items-center gap-2">
+      <LocaleToggle />
+      <Button variant="ghost" size="icon" class="rounded-full text-white/65 hover:bg-primary/15 hover:text-primary" :aria-label="t('header.openNotifications')" @click="goNotifications"><Bell class="h-5 w-5" /></Button>
+      <Button variant="ghost" size="icon" class="rounded-full text-white/65 hover:bg-primary/15 hover:text-primary" :aria-label="t('header.openPrompts')" @click="goPrompts"><HelpCircle class="h-5 w-5" /></Button>
+      <div class="mx-1 hidden h-6 w-px bg-white/15 sm:block"></div>
+      <Button variant="ghost" class="hidden items-center gap-2 rounded-full text-white hover:bg-white/10 sm:flex" :aria-label="t('header.openAccounts')" @click="goAccounts">
+        <div class="flex h-8 w-8 items-center justify-center rounded-full border border-primary/30 bg-primary/15"><UserCircle class="h-6 w-6 text-primary" /></div>
+        <div class="hidden text-left lg:block"><p class="text-xs font-black leading-none">SBS Admin</p><p class="mt-1 text-[9px] text-white/45">{{ t('header.accountManagement') }}</p></div>
       </Button>
-
-      <Button
-        variant="ghost"
-        size="icon"
-        class="md:hidden"
-        :aria-label="t('header.openNavigation')"
-        @click="toggleMobileNav"
-      >
-         <Menu class="w-6 h-6 text-slate-700" />
-      </Button>
+      <Button variant="ghost" size="icon" class="text-white md:hidden" :aria-label="t('header.openNavigation')" @click="toggleMobileNav"><Menu class="h-6 w-6" /></Button>
     </div>
   </header>
 </template>
