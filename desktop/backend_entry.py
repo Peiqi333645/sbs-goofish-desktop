@@ -12,6 +12,15 @@ def _bundle_root() -> Path:
     return Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
 
 
+def _replace_bundled_directory(source: Path, target: Path) -> None:
+    """Replace generated application assets while preserving user-created data."""
+    if not source.exists():
+        return
+    if target.exists():
+        shutil.rmtree(target)
+    shutil.copytree(source, target)
+
+
 def _prepare_user_data() -> Path:
     data_dir = Path(os.environ.get("SBS_USER_DATA_DIR", Path.cwd())).expanduser().resolve()
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -20,11 +29,11 @@ def _prepare_user_data() -> Path:
         (data_dir / name).mkdir(parents=True, exist_ok=True)
 
     root = _bundle_root()
+
+    # dist and static are generated program files. Always replace them so an
+    # upgraded desktop build cannot keep stale HTML, CSS or hashed JS bundles.
     for name in ("dist", "static"):
-        source = root / name
-        target = data_dir / name
-        if source.exists():
-            shutil.copytree(source, target, dirs_exist_ok=True)
+        _replace_bundled_directory(root / name, data_dir / name)
 
     prompt_source = root / "prompts"
     if prompt_source.exists():
@@ -59,7 +68,6 @@ def main() -> None:
     if "--desktop-spider" in sys.argv:
         sys.argv.remove("--desktop-spider")
         from spider_v2 import main as spider_main
-
         asyncio.run(spider_main())
         return
 
