@@ -49,7 +49,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt pyinstaller cairosvg
+          python -m pip install -r requirements.txt pyinstaller Pillow
       - name: Generate desktop icon
         run: python desktop/generate_icon.py
       - name: Install bundled Chromium
