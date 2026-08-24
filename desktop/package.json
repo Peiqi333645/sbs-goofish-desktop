@@ -17,40 +17,21 @@
     "productName": "SBS闲鱼助手",
     "asar": true,
     "artifactName": "SBS-Goofish-${version}-${os}-${arch}.${ext}",
-    "files": [
-      "main.js",
-      "package.json"
-    ],
+    "files": ["main.js", "package.json"],
     "extraResources": [
-      {
-        "from": "../backend-dist/sbs-goofish-backend",
-        "to": "backend"
-      },
-      {
-        "from": "playwright-browsers",
-        "to": "playwright-browsers"
-      }
+      {"from": "../backend-dist/sbs-goofish-backend", "to": "backend"},
+      {"from": "playwright-browsers", "to": "playwright-browsers"}
     ],
-    "directories": {
-      "output": "release"
-    },
+    "directories": {"output": "release"},
     "mac": {
+      "icon": "build/icon.png",
       "category": "public.app-category.productivity",
-      "target": [
-        {
-          "target": "dmg",
-          "arch": ["arm64"]
-        }
-      ],
+      "target": [{"target": "dmg", "arch": ["arm64"]}],
       "identity": null
     },
     "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": ["x64"]
-        }
-      ]
+      "icon": "build/icon.png",
+      "target": [{"target": "nsis", "arch": ["x64"]}]
     },
     "nsis": {
       "oneClick": false,
