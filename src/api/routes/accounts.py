@@ -16,7 +16,7 @@ from src.infrastructure.config.env_manager import env_manager
 
 router = APIRouter(prefix="/api/accounts", tags=["accounts"])
 
-ACCOUNT_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,50}$")
+ACCOUNT_NAME_RE = re.compile(r"^[\w\u4e00-\u9fff-]{1,50}$", re.UNICODE)
 
 
 class AccountCreate(BaseModel):
@@ -56,7 +56,7 @@ def _ensure_state_dir(path: str) -> None:
 def _validate_name(name: str) -> str:
     trimmed = name.strip()
     if not trimmed or not ACCOUNT_NAME_RE.match(trimmed):
-        raise HTTPException(status_code=400, detail="账号名称只能包含字母、数字、下划线或短横线。")
+        raise HTTPException(status_code=400, detail="账号名称只能包含中文、字母、数字、下划线或短横线。")
     return trimmed
 
 
