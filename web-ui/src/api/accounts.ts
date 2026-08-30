@@ -36,3 +36,27 @@ export async function updateAccount(name: string, content: string): Promise<Acco
 export async function deleteAccount(name: string): Promise<{ message: string }> {
   return await http(`/api/accounts/${encodeURIComponent(name)}`, { method: 'DELETE' })
 }
+
+export interface QrLoginSession {
+  session_id: string
+  status: 'starting' | 'opening' | 'waiting' | 'success' | 'error' | 'cancelled'
+  message: string
+  name: string
+  path?: string
+}
+
+export async function startQrLogin(name: string): Promise<QrLoginSession> {
+  return await http('/api/accounts/qr-login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+}
+
+export async function getQrLoginStatus(sessionId: string): Promise<QrLoginSession> {
+  return await http(`/api/accounts/qr-login/${encodeURIComponent(sessionId)}`)
+}
+
+export async function cancelQrLogin(sessionId: string): Promise<{ message: string }> {
+  return await http(`/api/accounts/qr-login/${encodeURIComponent(sessionId)}`, { method: 'DELETE' })
+}
