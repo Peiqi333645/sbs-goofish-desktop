@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { listAccounts, getAccount, createAccount, updateAccount, deleteAccount, type AccountItem } from '@/api/accounts'
+import { listAccounts, getAccount, createAccount, updateAccount, deleteAccount, startQrLogin, getQrLoginStatus, cancelQrLogin, type AccountItem } from '@/api/accounts'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -19,6 +19,11 @@ const isSaving = ref(false)
 const router = useRouter()
 
 const isCreateDialogOpen = ref(false)
+const isQrDialogOpen = ref(false)
+const qrName = ref('')
+const qrSessionId = ref('')
+const qrStatus = ref('idle')
+const qrMessage = ref('点击下方按钮后，将打开闲鱼官方扫码登录页面。')
 const isEditDialogOpen = ref(false)
 const isDeleteDialogOpen = ref(false)
 
@@ -37,6 +42,52 @@ async function fetchAccounts() {
   } finally {
     isLoading.value = false
   }
+}
+
+function openQrDialog() {
+  qrName.value = ''
+  qrSessionId.value = ''
+  qrStatus.value = 'idle'
+  qrMessage.value = '点击“打开扫码页面”后，使用手机淘宝扫码并在手机上确认。'
+  isQrDialogOpen.value = true
+}
+
+async function handleQrLogin() {
+  if (!qrName.value.trim()) {
+    toast({ title: '请先填写账号名称', variant: 'destructive' })
+    return
+  }
+  isSaving.value = true
+  try {
+    const session = await startQrLogin(qrName.value.trim())
+    qrSessionId.value = session.session_id
+    qrStatus.value = session.status
+    qrMessage.value = session.message
+    while (isQrDialogOpen.value && !['success', 'error', 'cancelled'].includes(qrStatus.value)) {
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      const current = await getQrLoginStatus(session.session_id)
+      qrStatus.value = current.status
+      qrMessage.value = current.message
+    }
+    if (qrStatus.value === 'success') {
+      toast({ title: '扫码登录成功' })
+      isQrDialogOpen.value = false
+      await fetchAccounts()
+    }
+  } catch (e) {
+    qrStatus.value = 'error'
+    qrMessage.value = (e as Error).message
+    toast({ title: '扫码登录失败', description: qrMessage.value, variant: 'destructive' })
+  } finally {
+    isSaving.value = false
+  }
+}
+
+async function closeQrDialog() {
+  if (qrSessionId.value && !['success', 'error', 'cancelled'].includes(qrStatus.value)) {
+    await cancelQrLogin(qrSessionId.value).catch(() => undefined)
+  }
+  isQrDialogOpen.value = false
 }
 
 function openCreateDialog() {
@@ -128,37 +179,20 @@ onMounted(fetchAccounts)
         <h1 class="text-2xl font-bold text-gray-800">{{ t('accounts.title') }}</h1>
         <p class="text-sm text-gray-500 mt-1">{{ t('accounts.description') }}</p>
       </div>
-      <Button class="w-full sm:w-auto" @click="openCreateDialog">{{ t('accounts.add') }}</Button>
+      <Button class="w-full sm:w-auto" @click="openQrDialog">+ 扫码登录闲鱼账号</Button>
     </div>
 
     <Card class="app-surface mb-6 border-none">
       <CardHeader>
-        <CardTitle>{{ t('accounts.cookieGuide.title') }}</CardTitle>
+        <CardTitle>推荐使用扫码登录</CardTitle>
       </CardHeader>
-      <CardContent class="text-sm text-gray-600">
-        <ol class="list-decimal list-inside space-y-1">
-          <li>
-            {{ t('accounts.cookieGuide.step1Prefix') }}
-            <a
-              class="text-blue-600 hover:underline"
-              href="https://chromewebstore.google.com/detail/xianyu-login-state-extrac/eidlpfjiodpigmfcahkmlenhppfklcoa"
-              target="_blank"
-              rel="noopener noreferrer"
-            >{{ t('accounts.cookieGuide.extension') }}</a>
-          </li>
-          <li>
-            {{ t('accounts.cookieGuide.step2Prefix') }}
-            <a
-              class="text-blue-600 hover:underline"
-              href="https://www.goofish.com"
-              target="_blank"
-              rel="noopener noreferrer"
-            >{{ t('accounts.cookieGuide.website') }}</a>
-          </li>
-          <li>{{ t('accounts.cookieGuide.step3') }}</li>
-          <li>{{ t('accounts.cookieGuide.step4') }}</li>
-          <li>{{ t('accounts.cookieGuide.step5') }}</li>
-        </ol>
+      <CardContent class="space-y-3 text-sm text-gray-600">
+        <p>软件只会打开闲鱼官方登录页面。请使用手机淘宝扫码并确认，登录状态保存在当前电脑，不需要复制 Cookie 或 JSON。</p>
+        <div class="flex flex-wrap gap-2">
+          <Button @click="openQrDialog">打开扫码登录</Button>
+          <Button variant="outline" @click="openCreateDialog">高级方式：导入 JSON</Button>
+        </div>
+        <p class="text-xs text-muted-foreground">请勿把 JSON 登录状态发送给他人；它可能包含可直接代表账号登录的 Cookie。</p>
       </CardContent>
     </Card>
 
@@ -224,11 +258,36 @@ onMounted(fetchAccounts)
       </CardContent>
     </Card>
 
+    <Dialog v-model:open="isQrDialogOpen">
+      <DialogContent class="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle>扫码登录闲鱼账号</DialogTitle>
+          <DialogDescription>二维码来自闲鱼官方页面，扫码后请在手机淘宝中确认。</DialogDescription>
+        </DialogHeader>
+        <div class="space-y-4">
+          <div class="grid gap-2">
+            <Label>账号名称</Label>
+            <Input v-model="qrName" :disabled="qrStatus !== 'idle'" placeholder="例如：我的闲鱼账号" />
+          </div>
+          <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            {{ qrMessage }}
+          </div>
+          <p v-if="qrStatus === 'waiting'" class="text-xs text-muted-foreground">浏览器登录窗口会自动关闭；请不要在扫码完成前手动关闭。</p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="closeQrDialog">取消</Button>
+          <Button v-if="qrStatus === 'idle' || qrStatus === 'error' || qrStatus === 'cancelled'" :disabled="isSaving" @click="handleQrLogin">
+            {{ isSaving ? '正在打开…' : '打开扫码页面' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
     <Dialog v-model:open="isCreateDialogOpen">
       <DialogContent class="sm:max-w-[700px]">
         <DialogHeader>
-          <DialogTitle>{{ t('accounts.createDialog.title') }}</DialogTitle>
-          <DialogDescription>{{ t('accounts.createDialog.description') }}</DialogDescription>
+          <DialogTitle>高级方式：导入 JSON 登录状态</DialogTitle>
+          <DialogDescription>仅用于扫码登录不可用时。JSON 内可能包含敏感 Cookie，请勿分享给任何人。</DialogDescription>
         </DialogHeader>
         <div class="space-y-4">
           <div class="grid gap-2">
