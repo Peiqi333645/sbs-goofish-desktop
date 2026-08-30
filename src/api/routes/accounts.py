@@ -1,13 +1,16 @@
 """
 闲鱼账号管理路由
 """
+import asyncio
 import json
 import os
 import re
+import uuid
 import aiofiles
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List
+from typing import Dict, List
+from playwright.async_api import async_playwright
 from src.infrastructure.config.env_manager import env_manager
 
 
@@ -23,6 +26,14 @@ class AccountCreate(BaseModel):
 
 class AccountUpdate(BaseModel):
     content: str
+
+
+class QrLoginStart(BaseModel):
+    name: str
+
+
+_qr_sessions: Dict[str, dict] = {}
+_qr_tasks: Dict[str, asyncio.Task] = {}
 
 
 def _strip_quotes(value: str) -> str:
@@ -59,6 +70,96 @@ def _validate_json(content: str) -> None:
         json.loads(content)
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="提供的内容不是有效的JSON格式。")
+
+
+async def _run_qr_login(session_id: str, account_name: str) -> None:
+    """Open the official Xianyu page and persist Playwright storage state after login."""
+    browser = None
+    playwright = None
+    try:
+        _qr_sessions[session_id] = {
+            "status": "opening",
+            "message": "正在打开闲鱼官方扫码页面…",
+            "name": account_name,
+        }
+        playwright = await async_playwright().start()
+        browser = await playwright.chromium.launch(
+            headless=False,
+            args=["--disable-blink-features=AutomationControlled"],
+        )
+        context = await browser.new_context(locale="zh-CN")
+        page = await context.new_page()
+        await page.goto("https://www.goofish.com/", wait_until="domcontentloaded", timeout=60000)
+        _qr_sessions[session_id].update(
+            status="waiting",
+            message="请使用手机淘宝扫描浏览器中的官方二维码并确认登录。",
+        )
+
+        for _ in range(200):
+            await asyncio.sleep(1.5)
+            cookies = await context.cookies()
+            cookie_names = {item.get("name", "") for item in cookies}
+            logged_in = bool(cookie_names.intersection({"cookie2", "unb", "_tb_token_", "sgcookie"}))
+            if logged_in:
+                state_dir = _state_dir()
+                _ensure_state_dir(state_dir)
+                path = _account_path(account_name)
+                if os.path.exists(path):
+                    raise RuntimeError("该账号名称已经存在，请更换名称。")
+                await context.storage_state(path=path)
+                _qr_sessions[session_id].update(
+                    status="success",
+                    message="扫码登录成功，账号状态已安全保存到本机。",
+                    path=path,
+                )
+                return
+
+        raise RuntimeError("二维码已超时，请重新发起扫码登录。")
+    except asyncio.CancelledError:
+        _qr_sessions[session_id].update(status="cancelled", message="扫码登录已取消。")
+        raise
+    except Exception as exc:
+        _qr_sessions[session_id].update(status="error", message=str(exc))
+    finally:
+        if browser:
+            await browser.close()
+        if playwright:
+            await playwright.stop()
+        _qr_tasks.pop(session_id, None)
+
+
+@router.post("/qr-login", response_model=dict)
+async def start_qr_login(data: QrLoginStart):
+    account_name = _validate_name(data.name)
+    if os.path.exists(_account_path(account_name)):
+        raise HTTPException(status_code=409, detail="账号名称已经存在")
+    session_id = uuid.uuid4().hex
+    _qr_sessions[session_id] = {
+        "status": "starting",
+        "message": "正在准备扫码登录…",
+        "name": account_name,
+    }
+    _qr_tasks[session_id] = asyncio.create_task(_run_qr_login(session_id, account_name))
+    return {"session_id": session_id, **_qr_sessions[session_id]}
+
+
+@router.get("/qr-login/{session_id}", response_model=dict)
+async def get_qr_login_status(session_id: str):
+    session = _qr_sessions.get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="扫码会话不存在或已经过期")
+    return {"session_id": session_id, **session}
+
+
+@router.delete("/qr-login/{session_id}", response_model=dict)
+async def cancel_qr_login(session_id: str):
+    task = _qr_tasks.get(session_id)
+    if task and not task.done():
+        task.cancel()
+    session = _qr_sessions.get(session_id)
+    if session:
+        session.update(status="cancelled", message="扫码登录已取消。")
+    return {"message": "扫码登录已取消"}
 
 
 @router.get("", response_model=List[dict])
