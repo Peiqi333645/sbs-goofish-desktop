@@ -48,7 +48,7 @@ function openQrDialog() {
   qrName.value = ''
   qrSessionId.value = ''
   qrStatus.value = 'idle'
-  qrMessage.value = '点击“打开扫码页面”后，使用手机淘宝扫码并在手机上确认。'
+  qrMessage.value = '点击“打开扫码页面”后，使用手机闲鱼 App 扫描二维码并在闲鱼 App 中确认。'
   isQrDialogOpen.value = true
 }
 
@@ -187,7 +187,7 @@ onMounted(fetchAccounts)
         <CardTitle>推荐使用扫码登录</CardTitle>
       </CardHeader>
       <CardContent class="space-y-3 text-sm text-gray-600">
-        <p>软件只会打开闲鱼官方登录页面。请使用手机淘宝扫码并确认，登录状态保存在当前电脑，不需要复制 Cookie 或 JSON。</p>
+        <p>软件只会打开闲鱼官方登录页面。请打开手机闲鱼 App 扫码并确认，登录状态保存在当前电脑，不需要复制 Cookie 或 JSON。</p>
         <div class="flex flex-wrap gap-2">
           <Button @click="openQrDialog">打开扫码登录</Button>
           <Button variant="outline" @click="openCreateDialog">高级方式：导入 JSON</Button>
@@ -262,7 +262,7 @@ onMounted(fetchAccounts)
       <DialogContent class="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>扫码登录闲鱼账号</DialogTitle>
-          <DialogDescription>二维码来自闲鱼官方页面，扫码后请在手机淘宝中确认。</DialogDescription>
+          <DialogDescription>二维码来自闲鱼官方页面，请使用手机闲鱼 App 扫码并在闲鱼 App 中确认。</DialogDescription>
         </DialogHeader>
         <div class="space-y-4">
           <div class="grid gap-2">
@@ -284,12 +284,52 @@ onMounted(fetchAccounts)
     </Dialog>
 
     <Dialog v-model:open="isCreateDialogOpen">
-      <DialogContent class="sm:max-w-[700px]">
+      <DialogContent class="max-h-[88vh] overflow-y-auto sm:max-w-[760px]">
         <DialogHeader>
           <DialogTitle>高级方式：导入 JSON 登录状态</DialogTitle>
-          <DialogDescription>仅用于扫码登录不可用时。JSON 内可能包含敏感 Cookie，请勿分享给任何人。</DialogDescription>
+          <DialogDescription>仅用于扫码登录不可用时。请先在浏览器真实登录闲鱼，再导出完整的 Playwright 状态 JSON。</DialogDescription>
         </DialogHeader>
         <div class="space-y-4">
+          <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+            <div class="mb-4">
+              <p class="text-base font-bold">第一次使用？按图完成这 4 步</p>
+              <p class="mt-1 text-xs text-amber-800">JSON 登录仅作为扫码不可用时的备用方式。</p>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div class="rounded-xl border border-amber-100 bg-white p-4">
+                <div class="mb-2 flex items-center gap-3">
+                  <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-2xl">🌐</span>
+                  <div><span class="text-xs font-bold text-amber-600">第 1 步</span><p class="font-semibold">电脑登录闲鱼</p></div>
+                </div>
+                <p class="text-xs leading-5 text-slate-600">在 Chrome 打开 goofish.com，使用手机闲鱼 App 扫码，确认网页已显示你的头像或昵称。</p>
+              </div>
+              <div class="rounded-xl border border-amber-100 bg-white p-4">
+                <div class="mb-2 flex items-center gap-3">
+                  <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-2xl">🧩</span>
+                  <div><span class="text-xs font-bold text-amber-600">第 2 步</span><p class="font-semibold">打开导出扩展</p></div>
+                </div>
+                <p class="text-xs leading-5 text-slate-600">点击浏览器右上角扩展图标，选择 “Xianyu Login State Extractor”。</p>
+                <a class="mt-2 inline-block text-xs font-semibold text-amber-600 hover:underline" href="https://chromewebstore.google.com/detail/xianyu-login-state-extrac/eidlpfjiodpigmfcahkmlenhppfklcoa" target="_blank" rel="noopener noreferrer">安装登录状态导出扩展 →</a>
+              </div>
+              <div class="rounded-xl border border-amber-100 bg-white p-4">
+                <div class="mb-2 flex items-center gap-3">
+                  <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-2xl">📋</span>
+                  <div><span class="text-xs font-bold text-amber-600">第 3 步</span><p class="font-semibold">复制全部 JSON</p></div>
+                </div>
+                <p class="text-xs leading-5 text-slate-600">点击扩展中的“提取/复制登录状态”，从第一个 { 到最后一个 } 全部复制，不要删减内容。</p>
+              </div>
+              <div class="rounded-xl border border-amber-100 bg-white p-4">
+                <div class="mb-2 flex items-center gap-3">
+                  <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-2xl">✅</span>
+                  <div><span class="text-xs font-bold text-amber-600">第 4 步</span><p class="font-semibold">粘贴并保存</p></div>
+                </div>
+                <p class="text-xs leading-5 text-slate-600">在下方填写便于识别的账号名称，将完整 JSON 粘贴到大输入框，再点击“保存”。</p>
+              </div>
+            </div>
+            <div class="mt-3 rounded-xl bg-red-50 p-3 text-xs leading-5 text-red-700">
+              🔒 JSON 相当于登录凭证：不要截图、上传到网盘、提交到 GitHub或发送给任何人。提示“缺少 cookies”时，请重新登录闲鱼后再次导出。
+            </div>
+          </div>
           <div class="grid gap-2">
             <Label>{{ t('accounts.createDialog.name') }}</Label>
             <Input v-model="newName" :placeholder="t('accounts.createDialog.namePlaceholder')" />

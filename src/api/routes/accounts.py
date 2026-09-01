@@ -65,11 +65,32 @@ def _account_path(name: str) -> str:
     return os.path.join(_state_dir(), filename)
 
 
+def _cookie_map(cookies: list) -> dict:
+    return {
+        str(item.get("name", "")): str(item.get("value", ""))
+        for item in cookies
+        if isinstance(item, dict)
+    }
+
+
+def _has_authenticated_identity(cookies: list) -> bool:
+    """Require account identity cookies; anonymous tracking cookies are not login proof."""
+    values = _cookie_map(cookies)
+    user_id = values.get("unb") or values.get("cookie17")
+    nickname = values.get("tracknick") or values.get("lgc")
+    authenticated_session = values.get("cookie2") and values.get("t")
+    return bool(user_id and (nickname or authenticated_session))
+
+
 def _validate_json(content: str) -> None:
     try:
-        json.loads(content)
+        state = json.loads(content)
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="提供的内容不是有效的JSON格式。")
+    if not isinstance(state, dict) or not isinstance(state.get("cookies"), list):
+        raise HTTPException(status_code=400, detail="这不是Playwright登录状态JSON，缺少cookies列表。")
+    if not _has_authenticated_identity(state["cookies"]):
+        raise HTTPException(status_code=400, detail="JSON中没有检测到已登录的闲鱼账号身份，请重新登录后导出。")
 
 
 async def _run_qr_login(session_id: str, account_name: str) -> None:
@@ -92,15 +113,20 @@ async def _run_qr_login(session_id: str, account_name: str) -> None:
         await page.goto("https://www.goofish.com/", wait_until="domcontentloaded", timeout=60000)
         _qr_sessions[session_id].update(
             status="waiting",
-            message="请使用手机淘宝扫描浏览器中的官方二维码并确认登录。",
+            message="请打开手机闲鱼 App，扫描浏览器中的闲鱼官方二维码并在闲鱼 App 中确认登录。",
         )
 
         for _ in range(200):
             await asyncio.sleep(1.5)
+            if page.is_closed():
+                raise RuntimeError("登录窗口已关闭，尚未检测到真实账号登录。")
             cookies = await context.cookies()
-            cookie_names = {item.get("name", "") for item in cookies}
-            logged_in = bool(cookie_names.intersection({"cookie2", "unb", "_tb_token_", "sgcookie"}))
-            if logged_in:
+            if _has_authenticated_identity(cookies):
+                # Wait once more so cookies/localStorage finish writing after mobile confirmation.
+                await asyncio.sleep(2)
+                confirmed_cookies = await context.cookies()
+                if not _has_authenticated_identity(confirmed_cookies):
+                    continue
                 state_dir = _state_dir()
                 _ensure_state_dir(state_dir)
                 path = _account_path(account_name)
@@ -109,7 +135,7 @@ async def _run_qr_login(session_id: str, account_name: str) -> None:
                 await context.storage_state(path=path)
                 _qr_sessions[session_id].update(
                     status="success",
-                    message="扫码登录成功，账号状态已安全保存到本机。",
+                    message="已检测到真实闲鱼账号身份，登录状态已保存到本机。",
                     path=path,
                 )
                 return
