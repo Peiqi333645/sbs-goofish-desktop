@@ -20,11 +20,18 @@ def _prepare_user_data() -> Path:
         (data_dir / name).mkdir(parents=True, exist_ok=True)
 
     root = _bundle_root()
-    for name in ("dist", "static"):
-        source = root / name
-        target = data_dir / name
-        if source.exists():
-            shutil.copytree(source, target, dirs_exist_ok=True)
+    # Frontend assets are versioned build output. Replace them atomically enough for
+    # startup instead of merging with hashes left by an older installation.
+    dist_source = root / "dist"
+    dist_target = data_dir / "dist"
+    if dist_source.exists():
+        if dist_target.exists():
+            shutil.rmtree(dist_target)
+        shutil.copytree(dist_source, dist_target)
+
+    static_source = root / "static"
+    if static_source.exists():
+        shutil.copytree(static_source, data_dir / "static", dirs_exist_ok=True)
 
     prompt_source = root / "prompts"
     if prompt_source.exists():
