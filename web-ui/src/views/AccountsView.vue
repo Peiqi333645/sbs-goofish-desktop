@@ -287,9 +287,18 @@ onMounted(fetchAccounts)
       <DialogContent class="sm:max-w-[700px]">
         <DialogHeader>
           <DialogTitle>高级方式：导入 JSON 登录状态</DialogTitle>
-          <DialogDescription>仅用于扫码登录不可用时。JSON 内可能包含敏感 Cookie，请勿分享给任何人。</DialogDescription>
+          <DialogDescription>仅用于扫码登录不可用时。请先在浏览器真实登录闲鱼，再导出完整的 Playwright 状态 JSON。</DialogDescription>
         </DialogHeader>
         <div class="space-y-4">
+          <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+            <p class="font-semibold">JSON 登录步骤</p>
+            <ol class="mt-2 list-decimal space-y-1 pl-5">
+              <li>在 Chrome 中打开闲鱼官网并完成真实登录。</li>
+              <li>使用“Xianyu Login State Extractor”扩展导出登录状态。</li>
+              <li>复制扩展生成的全部 JSON 内容，原样粘贴到下方。</li>
+            </ol>
+            <p class="mt-2 text-xs">JSON 相当于登录凭证，请勿截图、上传或发送给他人。</p>
+          </div>
           <div class="grid gap-2">
             <Label>{{ t('accounts.createDialog.name') }}</Label>
             <Input v-model="newName" :placeholder="t('accounts.createDialog.namePlaceholder')" />
