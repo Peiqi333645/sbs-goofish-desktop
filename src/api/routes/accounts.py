@@ -113,7 +113,7 @@ async def _run_qr_login(session_id: str, account_name: str) -> None:
         await page.goto("https://www.goofish.com/", wait_until="domcontentloaded", timeout=60000)
         _qr_sessions[session_id].update(
             status="waiting",
-            message="请使用手机淘宝扫描浏览器中的官方二维码并确认登录。",
+            message="请打开手机闲鱼 App，扫描浏览器中的闲鱼官方二维码并在闲鱼 App 中确认登录。",
         )
 
         for _ in range(200):
