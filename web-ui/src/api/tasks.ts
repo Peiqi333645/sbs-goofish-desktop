@@ -3,12 +3,17 @@ import type {
   TaskCreateResponse,
   TaskGenerateRequest,
   TaskGenerationJob,
+  TaskProgress,
   TaskUpdate,
 } from '@/types/task.d.ts'
 import { http } from '@/lib/http'
 
 export async function getAllTasks(): Promise<Task[]> {
   return await http('/api/tasks')
+}
+
+export async function getTaskProgress(): Promise<TaskProgress[]> {
+  return await http('/api/tasks/progress/all')
 }
 
 export async function createTaskWithAI(data: TaskGenerateRequest): Promise<TaskCreateResponse> {

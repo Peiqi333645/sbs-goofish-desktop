@@ -57,6 +57,16 @@ def test_start_stop_task_updates_status(api_client, api_context, sample_task_pay
     assert process_service.stopped == [0]
 
 
+def test_task_progress_endpoint_lists_every_task(api_client, sample_task_payload):
+    assert api_client.post("/api/tasks/", json=sample_task_payload).status_code == 200
+    response = api_client.get("/api/tasks/progress/all")
+    assert response.status_code == 200
+    progress = response.json()
+    assert len(progress) == 1
+    assert progress[0]["task_name"] == sample_task_payload["task_name"]
+    assert progress[0]["max_pages"] == sample_task_payload["max_pages"]
+
+
 def test_generate_keyword_mode_task_without_ai_criteria(api_client):
     payload = {
         "task_name": "A7M4 关键词筛选",

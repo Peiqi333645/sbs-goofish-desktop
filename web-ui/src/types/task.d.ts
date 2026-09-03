@@ -25,6 +25,22 @@ export interface Task {
   is_running: boolean;
 }
 
+export interface TaskProgress {
+  task_id: number;
+  task_name: string;
+  keyword: string;
+  is_running: boolean;
+  stage: 'idle' | 'scraping' | 'analyzing' | 'completed' | 'failed';
+  percent: number;
+  page: number;
+  max_pages: number;
+  page_item: number;
+  page_items: number;
+  matched_count: number;
+  detail_completed: number;
+  analysis_completed: number;
+}
+
 export type TaskGenerationStatus = 'queued' | 'running' | 'completed' | 'failed';
 export type TaskGenerationStepStatus = 'pending' | 'running' | 'completed' | 'failed';
 

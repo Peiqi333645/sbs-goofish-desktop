@@ -28,6 +28,7 @@ from src.services.account_strategy_service import normalize_account_strategy
 from src.infrastructure.persistence.storage_names import build_result_filename
 from src.services.price_history_service import delete_price_snapshots
 from src.services.result_storage_service import delete_result_file_records
+from src.services.task_progress_service import build_task_progress
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
 async def _reload_scheduler_if_needed(
@@ -63,6 +64,17 @@ async def get_tasks(
     """获取所有任务"""
     tasks = await service.get_all_tasks()
     return serialize_tasks(tasks, scheduler_service)
+@router.get("/progress/all", response_model=List[dict])
+async def get_all_task_progress(
+    service: TaskService = Depends(get_task_service),
+    process_service: ProcessService = Depends(get_process_service),
+):
+    """Return compact progress snapshots for the sidebar."""
+    tasks = await service.get_all_tasks()
+    return [
+        build_task_progress(task, is_running=process_service.is_running(task.id))
+        for task in tasks
+    ]
 @router.get("/{task_id}", response_model=dict)
 async def get_task(
     task_id: int,

@@ -62,6 +62,7 @@ from src.services.search_pagination import (
     capture_search_results_response,
     is_search_results_response,
 )
+from src.services.search_relevance_service import filter_search_items
 
 
 class RiskControlError(Exception):
@@ -539,6 +540,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
 
     async def _run_scrape_attempt(state_file: str, proxy_server: Optional[str]) -> int:
         processed_item_count = 0
+        strict_match_count = 0
         stop_scraping = False
 
         if not os.path.exists(state_file):
@@ -937,10 +939,18 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                         log_time(f"第 {page_num} 页响应无效，跳过。")
                         continue
 
-                    basic_items = await _parse_search_results_json(
+                    raw_items = await _parse_search_results_json(
                         await current_response.json(), f"第 {page_num} 页"
                     )
+                    basic_items = filter_search_items(keyword, raw_items)
+                    strict_match_count += len(basic_items)
+                    log_time(
+                        f"[严格匹配] 第 {page_num}/{max_pages} 页返回 {len(raw_items)} 条，"
+                        f"标题命中 {len(basic_items)} 条，累计命中 {strict_match_count} 条。"
+                    )
                     if not basic_items:
+                        if page_num < max_pages:
+                            continue
                         break
                     # 搜索列表是事实来源。先完整保存基础商品，再进行详情和 AI 富化；
                     # 详情超时、风控或 AI 失败都不能让搜索结果从界面消失。
@@ -1003,7 +1013,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                             f"[页内进度 {i}/{total_items_on_page}] 发现新商品，获取详情: {item_data['商品标题'][:30]}..."
                         )
                         # --- 修改: 访问详情页前的等待时间，模拟用户在列表页上看了一会儿 ---
-                        await random_sleep(2, 4)  # 原来是 (2, 4)
+                        await random_sleep(0.4, 0.9)
 
                         detail_page = await context.new_page()
                         try:
@@ -1141,7 +1151,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                                 log_time(
                                     "[反爬] 执行一次主要的随机延迟以模拟用户浏览间隔..."
                                 )
-                                await random_sleep(5, 10)
+                                await random_sleep(0.8, 1.8)
                             else:
                                 print(
                                     f"   错误: 获取商品详情API响应失败，状态码: {detail_response.status}"
@@ -1165,14 +1175,14 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                         finally:
                             await detail_page.close()
                             # --- 修改: 增加关闭页面后的短暂整理时间 ---
-                            await random_sleep(2, 4)  # 原来是 (1, 2.5)
+                            await random_sleep(0.3, 0.8)
 
                     # --- 新增: 在处理完一页所有商品后，翻页前，增加一个更长的“休息”时间 ---
                     if not stop_scraping and page_num < max_pages:
                         print(
                             f"--- 第 {page_num} 页处理完毕，准备翻页。执行一次页面间的长时休息... ---"
                         )
-                        await random_sleep(10, 15)
+                        await random_sleep(2, 4)
 
             except PlaywrightTimeoutError as e:
                 if _is_login_url(page.url):
