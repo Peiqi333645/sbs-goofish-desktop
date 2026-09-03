@@ -3,7 +3,6 @@ import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import LocaleToggle from '@/components/layout/LocaleToggle.vue'
-import BrandIcon from '@/assets/sbs-brand.svg'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -29,12 +28,12 @@ async function handleLogin(){
     <div class="absolute right-6 top-6 z-20 text-white"><LocaleToggle /></div>
     <div class="relative z-10 grid w-full max-w-4xl overflow-hidden rounded-[28px] border border-white/10 bg-[#222] shadow-2xl md:grid-cols-[1.05fr_.95fr]">
       <section class="relative hidden min-h-[560px] flex-col justify-between overflow-hidden bg-primary p-10 text-[#222] md:flex">
-        <img :src="BrandIcon" alt="" class="h-20 w-20 rounded-2xl shadow-xl" />
+        <img src="/favicon.png" alt="" class="h-20 w-20 rounded-2xl shadow-xl" />
         <div><p class="mb-3 text-xs font-black tracking-[.28em]">SMART MONITOR</p><h1 class="text-4xl font-black leading-tight">发现机会，<br/>让监控更简单。</h1><p class="mt-5 max-w-xs text-sm font-semibold leading-6 text-black/60">本地桌面运行 · 任务实时管理 · 数据智能分析</p></div>
         <p class="text-xs font-bold text-black/45">SBS 闲鱼助手 DESKTOP</p>
       </section>
       <Card class="flex min-h-[560px] flex-col justify-center rounded-none border-0 bg-[#222] px-5 text-white shadow-none sm:px-10">
-        <div class="mb-8 md:hidden"><img :src="BrandIcon" alt="" class="mx-auto h-16 w-16 rounded-2xl" /></div>
+        <div class="mb-8 md:hidden"><img src="/favicon.png" alt="" class="mx-auto h-16 w-16 rounded-2xl" /></div>
         <div class="mb-8"><p class="mb-2 text-xs font-black tracking-[.22em] text-primary">WELCOME BACK</p><h2 class="text-3xl font-black">登录 SBS闲鱼助手</h2><p class="mt-2 text-sm text-white/45">{{ t('login.description') }}</p></div>
         <form @submit.prevent="handleLogin">
           <CardContent class="grid gap-5 p-0">
