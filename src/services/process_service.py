@@ -67,6 +67,10 @@ class ProcessService:
         process = self.processes.get(task_id)
         return process is not None and process.returncode is None
 
+    def allow_manual_retry(self, task_name: str) -> None:
+        """Clear an old circuit-breaker pause for an explicit user retry."""
+        self.failure_guard.record_success(task_name)
+
     async def _drain_finished_process(self, task_id: int) -> None:
         process = self.processes.get(task_id)
         if process is None or process.returncode is None:

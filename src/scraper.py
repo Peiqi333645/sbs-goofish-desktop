@@ -959,7 +959,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                                 "卖家信息": {},
                                 "ai_analysis": {
                                     "analysis_source": "pending",
-                                    "is_recommended": False,
+                                    "is_recommended": None,
                                     "reason": "已发现，等待详情与分析。",
                                     "keyword_hit_count": 0,
                                 },
