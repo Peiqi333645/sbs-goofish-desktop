@@ -3,6 +3,7 @@ import asyncio
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from src.services.search_pagination import advance_search_page
+from src.services.search_pagination import capture_search_results_response
 from src.services.search_pagination import is_search_results_response
 
 
@@ -16,6 +17,29 @@ class FakeResponse:
         self.url = url
         self.ok = ok
         self.request = FakeRequest(method)
+
+    async def json(self):
+        return {"data": {"resultList": []}}
+
+
+def test_capture_search_results_response_matches_payload_shape() -> None:
+    class ShapePage:
+        def on(self, _event, handler):
+            self.handler = handler
+
+        def remove_listener(self, _event, _handler):
+            return None
+
+    page = ShapePage()
+
+    async def action():
+        page.handler(FakeResponse("https://example.com/new-search-api", method="GET"))
+        await asyncio.sleep(0)
+
+    response = asyncio.run(
+        capture_search_results_response(page=page, action=action, timeout_ms=100)
+    )
+    assert response.url == "https://example.com/new-search-api"
 
 
 class FakeLocator:

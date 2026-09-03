@@ -20,6 +20,65 @@ PAGE_CLICK_SLEEP_MIN_SECONDS = 2
 PAGE_CLICK_SLEEP_MAX_SECONDS = 5
 
 
+async def capture_search_results_response(
+    *,
+    page: Any,
+    action: Callable[[], Awaitable[Any]],
+    timeout_ms: int = 30_000,
+    logger: Callable[[str], None] = log_time,
+) -> Any:
+    """Capture a search payload by shape instead of an unstable mtop URL.
+
+    Goofish changes endpoint names, versions, and request methods regularly. The
+    stable contract used by the parser is the JSON ``data.resultList`` array.
+    """
+    loop = asyncio.get_running_loop()
+    matched_response = loop.create_future()
+    inspection_tasks: set[asyncio.Task] = set()
+    candidate_urls: list[str] = []
+
+    async def inspect(response: Any) -> None:
+        if matched_response.done():
+            return
+        try:
+            request = getattr(response, "request", None)
+            resource_type = getattr(request, "resource_type", "")
+            if resource_type and resource_type not in {"xhr", "fetch", "document"}:
+                return
+            url = str(getattr(response, "url", ""))
+            if url:
+                candidate_urls.append(url)
+                del candidate_urls[:-20]
+            payload = await response.json()
+            result_list = (payload.get("data") or {}).get("resultList")
+            if isinstance(result_list, list) and not matched_response.done():
+                matched_response.set_result(response)
+        except Exception:
+            return
+
+    def on_response(response: Any) -> None:
+        task = asyncio.create_task(inspect(response))
+        inspection_tasks.add(task)
+        task.add_done_callback(inspection_tasks.discard)
+
+    page.on("response", on_response)
+    try:
+        await action()
+        return await asyncio.wait_for(
+            asyncio.shield(matched_response), timeout=timeout_ms / 1000
+        )
+    except asyncio.TimeoutError as exc:
+        if inspection_tasks:
+            await asyncio.gather(*tuple(inspection_tasks), return_exceptions=True)
+        diagnostic = "\n".join(candidate_urls[-10:]) or "未观察到 XHR/fetch JSON 响应"
+        logger(f"未识别到包含 data.resultList 的搜索响应。最近候选请求:\n{diagnostic}")
+        raise PlaywrightTimeoutError(
+            f"Timeout {timeout_ms}ms exceeded while waiting for search result payload"
+        ) from exc
+    finally:
+        page.remove_listener("response", on_response)
+
+
 @dataclass(frozen=True)
 class PageAdvanceResult:
     advanced: bool

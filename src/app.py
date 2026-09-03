@@ -164,6 +164,14 @@ async def read_root(request: Request):
         )
 
 
+@app.get("/favicon.png")
+async def favicon():
+    """Serve the single brand icon emitted by the frontend build."""
+    if os.path.exists("dist/favicon.png"):
+        return FileResponse("dist/favicon.png", media_type="image/png")
+    raise HTTPException(status_code=404, detail="图标资源未找到")
+
+
 # Catch-all 路由 - 处理所有前端路由（必须放在最后）
 @app.get("/{full_path:path}")
 async def serve_spa(request: Request, full_path: str):
