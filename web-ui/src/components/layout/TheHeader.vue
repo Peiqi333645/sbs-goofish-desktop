@@ -4,7 +4,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
 import DashboardTaskSearch from '@/components/layout/DashboardTaskSearch.vue'
 import LocaleToggle from '@/components/layout/LocaleToggle.vue'
-import BrandIcon from '@/assets/sbs-brand.svg'
 import { Bell, Search, UserCircle, HelpCircle, Menu } from 'lucide-vue-next'
 import Badge from '@/components/ui/badge/Badge.vue'
 import { useMobileNav } from '@/composables/useMobileNav'
@@ -24,7 +23,7 @@ const goPrompts = () => router.push({ name: 'Settings', query: { tab: 'prompts' 
 <template>
   <header class="sticky top-0 z-[100] flex h-16 items-center justify-between border-b border-amber-400/20 bg-[#222222]/95 px-6 text-white backdrop-blur-xl">
     <RouterLink to="/dashboard" class="group flex items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" :aria-label="t('header.goHome')">
-      <img :src="BrandIcon" alt="" class="brand-grid h-9 w-9 rounded-xl transition-transform group-hover:scale-105" />
+      <img src="/favicon.png" alt="" class="brand-grid h-9 w-9 rounded-xl transition-transform group-hover:scale-105" />
       <div>
         <h1 class="text-[15px] font-black tracking-wide text-white">SBS<span class="text-primary">闲鱼助手</span></h1>
         <p class="text-[9px] font-semibold tracking-[.24em] text-white/45">SMART MONITOR</p>

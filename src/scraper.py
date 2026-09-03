@@ -471,6 +471,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
     historical_snapshots = load_price_snapshots(keyword)
     result_filename = build_result_filename(keyword)
     processed_links = load_processed_link_keys(keyword)
+    historical_links = set(processed_links)
     if processed_links:
         print(f"LOG: 发现已存在结果集 {result_filename}，已加载 {len(processed_links)} 个历史商品用于去重。")
     else:
@@ -941,6 +942,36 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                     )
                     if not basic_items:
                         break
+                    # 搜索列表是事实来源。先完整保存基础商品，再进行详情和 AI 富化；
+                    # 详情超时、风控或 AI 失败都不能让搜索结果从界面消失。
+                    discovered_at = datetime.now().isoformat()
+                    newly_discovered_count = 0
+                    for discovered_item in basic_items:
+                        discovered_key = get_link_unique_key(discovered_item["商品链接"])
+                        if discovered_key in historical_links:
+                            continue
+                        await save_to_jsonl(
+                            {
+                                "爬取时间": discovered_at,
+                                "搜索关键字": keyword,
+                                "任务名称": task_config.get("task_name", "Untitled Task"),
+                                "商品信息": discovered_item,
+                                "卖家信息": {},
+                                "ai_analysis": {
+                                    "analysis_source": "pending",
+                                    "is_recommended": False,
+                                    "reason": "已发现，等待详情与分析。",
+                                    "keyword_hit_count": 0,
+                                },
+                            },
+                            keyword,
+                        )
+                        newly_discovered_count += 1
+                    log_time(
+                        f"第 {page_num} 页搜索接口返回 {len(basic_items)} 条；"
+                        f"新发现并保存 {newly_discovered_count} 条基础商品，"
+                        f"历史重复 {len(basic_items) - newly_discovered_count} 条。"
+                    )
                     historical_snapshots.extend(
                         record_market_snapshots(
                             keyword=keyword,
@@ -962,7 +993,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                             break
 
                         unique_key = get_link_unique_key(item_data["商品链接"])
-                        if unique_key in processed_links:
+                        if unique_key in historical_links:
                             log_time(
                                 f"[页内进度 {i}/{total_items_on_page}] 商品 '{item_data['商品标题'][:20]}...' 已存在，跳过。"
                             )
@@ -1169,8 +1200,6 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                     await analysis_dispatcher.join()
                 log_time("任务执行完毕，浏览器将在5秒后自动关闭...")
                 await asyncio.sleep(5)
-                if debug_limit:
-                    input("按回车键关闭浏览器...")
                 await browser.close()
 
         return processed_item_count
@@ -1283,6 +1312,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
 
     if last_error:
         await _notify_task_failure(task_config, last_error, cookie_path=last_state_path)
+        raise RuntimeError(last_error)
 
     # 清理任务图片目录
     cleanup_task_images(task_config.get("task_name", "default"))

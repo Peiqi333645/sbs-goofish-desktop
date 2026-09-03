@@ -11,7 +11,7 @@ NEXT_PAGE_SELECTOR = (
     ":has([class*='search-pagination-arrow-right'])"
     ":not([disabled])"
 )
-SEARCH_RESULTS_API_FRAGMENT = "/h5/mtop.taobao.idlemtopsearch.pc.search/1.0/"
+SEARCH_RESULTS_API_MARKER = "idlemtopsearch"
 PAGE_REQUEST_TIMEOUT_MS = 20_000
 PAGE_CLICK_TIMEOUT_MS = 10_000
 PAGE_RETRY_DELAY_SECONDS = 5
@@ -29,12 +29,20 @@ class PageAdvanceResult:
 
 def is_search_results_response(
     response: Any,
-    api_url_fragment: str = SEARCH_RESULTS_API_FRAGMENT,
+    api_url_fragment: str = SEARCH_RESULTS_API_MARKER,
 ) -> bool:
     request = getattr(response, "request", None)
     request_method = getattr(request, "method", None)
     response_url = getattr(response, "url", "")
-    return api_url_fragment in response_url and request_method == "POST"
+    normalized_url = str(response_url).lower()
+    # 闲鱼会调整 mtop 接口版本，也可能在 GET/POST 之间切换。这里只识别
+    # 真正的商品搜索接口，避免版本号和请求方法变化导致整次搜索为 0。
+    excluded_markers = (".shade", "suggest", "recommend", "history")
+    return (
+        api_url_fragment.lower() in normalized_url
+        and not any(marker in normalized_url for marker in excluded_markers)
+        and request_method in {"GET", "POST"}
+    )
 
 
 async def advance_search_page(

@@ -124,7 +124,7 @@ class Task(BaseModel):
     ai_prompt_criteria_file: str
     account_state_file: Optional[str] = None
     account_strategy: Literal["auto", "fixed", "rotate"] = "auto"
-    free_shipping: bool = True
+    free_shipping: bool = False
     new_publish_option: Optional[str] = None
     region: Optional[str] = None
     decision_mode: Literal["ai", "keyword"] = "ai"
@@ -166,7 +166,7 @@ class TaskCreate(BaseModel):
     description: Optional[str] = ""
     analyze_images: bool = True
     max_pages: int = 3
-    personal_only: bool = True
+    personal_only: bool = False
     min_price: Optional[str] = None
     max_price: Optional[str] = None
     cron: Optional[str] = None
@@ -174,7 +174,7 @@ class TaskCreate(BaseModel):
     ai_prompt_criteria_file: str = ""
     account_state_file: Optional[str] = None
     account_strategy: Literal["auto", "fixed", "rotate"] = "auto"
-    free_shipping: bool = True
+    free_shipping: bool = False
     new_publish_option: Optional[str] = None
     region: Optional[str] = None
     decision_mode: Literal["ai", "keyword"] = "ai"
@@ -298,14 +298,14 @@ class TaskGenerateRequest(BaseModel):
     keyword: str
     description: Optional[str] = ""
     analyze_images: bool = True
-    personal_only: bool = True
+    personal_only: bool = False
     min_price: Optional[str] = None
     max_price: Optional[str] = None
     max_pages: int = 3
     cron: Optional[str] = None
     account_state_file: Optional[str] = None
     account_strategy: Literal["auto", "fixed", "rotate"] = "auto"
-    free_shipping: bool = True
+    free_shipping: bool = False
     new_publish_option: Optional[str] = None
     region: Optional[str] = None
     decision_mode: Literal["ai", "keyword"] = "ai"
