@@ -20,6 +20,25 @@ PAGE_CLICK_SLEEP_MIN_SECONDS = 2
 PAGE_CLICK_SLEEP_MAX_SECONDS = 5
 
 
+def is_search_result_payload(payload: Any) -> bool:
+    """Validate that resultList contains marketplace product cards."""
+    if not isinstance(payload, dict):
+        return False
+    result_list = (payload.get("data") or {}).get("resultList")
+    if not isinstance(result_list, list) or not result_list:
+        return False
+    product_count = 0
+    for entry in result_list:
+        try:
+            main = entry["data"]["item"]["main"]
+            content = main["exContent"]
+            if content.get("itemId") and content.get("title") and main.get("targetUrl"):
+                product_count += 1
+        except (KeyError, TypeError):
+            continue
+    return product_count >= min(3, len(result_list))
+
+
 async def capture_search_results_response(
     *,
     page: Any,
@@ -50,8 +69,19 @@ async def capture_search_results_response(
                 candidate_urls.append(url)
                 del candidate_urls[:-20]
             payload = await response.json()
-            result_list = (payload.get("data") or {}).get("resultList")
-            if isinstance(result_list, list) and not matched_response.done():
+            normalized_url = url.lower()
+            looks_like_search_url = (
+                SEARCH_RESULTS_API_MARKER in normalized_url
+                or "search" in normalized_url
+            ) and not any(
+                marker in normalized_url
+                for marker in ("recommend", "suggest", ".shade", "history")
+            )
+            if (
+                looks_like_search_url
+                and is_search_result_payload(payload)
+                and not matched_response.done()
+            ):
                 matched_response.set_result(response)
         except Exception:
             return
@@ -71,7 +101,7 @@ async def capture_search_results_response(
         if inspection_tasks:
             await asyncio.gather(*tuple(inspection_tasks), return_exceptions=True)
         diagnostic = "\n".join(candidate_urls[-10:]) or "未观察到 XHR/fetch JSON 响应"
-        logger(f"未识别到包含 data.resultList 的搜索响应。最近候选请求:\n{diagnostic}")
+        logger(f"未识别到包含真实商品列表的搜索响应。最近候选请求:\n{diagnostic}")
         raise PlaywrightTimeoutError(
             f"Timeout {timeout_ms}ms exceeded while waiting for search result payload"
         ) from exc

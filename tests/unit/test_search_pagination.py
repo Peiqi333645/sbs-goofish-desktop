@@ -5,6 +5,7 @@ from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 from src.services.search_pagination import advance_search_page
 from src.services.search_pagination import capture_search_results_response
 from src.services.search_pagination import is_search_results_response
+from src.services.search_pagination import is_search_result_payload
 
 
 class FakeRequest:
@@ -13,13 +14,34 @@ class FakeRequest:
 
 
 class FakeResponse:
-    def __init__(self, url: str, ok: bool = True, method: str = "POST"):
+    def __init__(self, url: str, ok: bool = True, method: str = "POST", payload=None):
         self.url = url
         self.ok = ok
         self.request = FakeRequest(method)
+        self.payload = payload
 
     async def json(self):
-        return {"data": {"resultList": []}}
+        return self.payload or {"data": {"resultList": []}}
+
+
+def _product_payload(count: int = 3):
+    return {
+        "data": {
+            "resultList": [
+                {
+                    "data": {
+                        "item": {
+                            "main": {
+                                "exContent": {"itemId": str(index), "title": f"商品 {index}"},
+                                "targetUrl": f"fleamarket://item?id={index}",
+                            }
+                        }
+                    }
+                }
+                for index in range(count)
+            ]
+        }
+    }
 
 
 def test_capture_search_results_response_matches_payload_shape() -> None:
@@ -33,13 +55,19 @@ def test_capture_search_results_response_matches_payload_shape() -> None:
     page = ShapePage()
 
     async def action():
-        page.handler(FakeResponse("https://example.com/new-search-api", method="GET"))
+        page.handler(FakeResponse("https://example.com/recommend", payload=_product_payload()))
+        page.handler(FakeResponse("https://example.com/new-search-api", method="GET", payload=_product_payload()))
         await asyncio.sleep(0)
 
     response = asyncio.run(
         capture_search_results_response(page=page, action=action, timeout_ms=100)
     )
     assert response.url == "https://example.com/new-search-api"
+
+
+def test_search_payload_rejects_non_product_result_list() -> None:
+    assert is_search_result_payload(_product_payload()) is True
+    assert is_search_result_payload({"data": {"resultList": [{"name": "推荐词"}]}}) is False
 
 
 class FakeLocator:

@@ -62,7 +62,6 @@ from src.services.search_pagination import (
     capture_search_results_response,
     is_search_results_response,
 )
-from src.services.search_relevance_service import filter_search_items
 
 
 class RiskControlError(Exception):
@@ -250,15 +249,13 @@ def _get_seller_profile_cache_ttl(task_config: dict) -> int:
 
 def _default_context_options() -> dict:
     return {
-        "user_agent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
-        "viewport": {"width": 412, "height": 915},
-        "device_scale_factor": 2.625,
-        "is_mobile": True,
-        "has_touch": True,
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "viewport": {"width": 1440, "height": 900},
+        "device_scale_factor": 1,
+        "is_mobile": False,
+        "has_touch": False,
         "locale": "zh-CN",
         "timezone_id": "Asia/Shanghai",
-        "permissions": ["geolocation"],
-        "geolocation": {"longitude": 121.4737, "latitude": 31.2304},
         "color_scheme": "light",
     }
 
@@ -942,11 +939,13 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                     raw_items = await _parse_search_results_json(
                         await current_response.json(), f"第 {page_num} 页"
                     )
-                    basic_items = filter_search_items(keyword, raw_items)
+                    # 闲鱼搜索结果本身就是事实来源。不要再用标题包含关系二次删减，
+                    # 否则型号别名、套机和兼容配件会被误删。关键词规则仅负责推荐标记。
+                    basic_items = raw_items
                     strict_match_count += len(basic_items)
                     log_time(
-                        f"[相关性筛选] 第 {page_num}/{max_pages} 页返回 {len(raw_items)} 条，"
-                        f"保留 {len(basic_items)} 条，累计命中 {strict_match_count} 条。"
+                        f"[搜索结果] 第 {page_num}/{max_pages} 页返回并保留 {len(basic_items)} 条，"
+                        f"累计获取 {strict_match_count} 条。"
                     )
                     if not basic_items:
                         if page_num < max_pages:

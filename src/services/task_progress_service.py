@@ -11,7 +11,7 @@ from src.utils import resolve_task_log_path
 
 _PAGE = re.compile(r"开始处理第\s*(\d+)/(\d+)\s*页")
 _ITEM = re.compile(r"\[页内进度\s*(\d+)/(\d+)\]")
-_STRICT = re.compile(r"累计命中\s*(\d+)\s*条")
+_STRICT = re.compile(r"累计(?:命中|获取)\s*(\d+)\s*条")
 _DETAIL = re.compile(r"累计处理\s*(\d+)\s*个新商品")
 _ANALYSIS = re.compile(r"后台分析.*?累计处理\s*(\d+)\s*个新商品")
 _RUN_MARKERS = ("步骤 0 - 模拟真实用户访问首页", "LOG: 发现已存在结果集", "LOG: 结果集")
