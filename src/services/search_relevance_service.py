@@ -13,25 +13,26 @@ def normalize_search_token(value: str) -> str:
 
 
 def title_matches_search_keyword(keyword: str, title: str) -> bool:
-    """Require every user-entered search token to occur in the title."""
-    title_source = str(title or "").lower()
-    title_text = normalize_search_token(title_source)
+    """Keep marketplace relevance while protecting explicit model searches.
+
+    Generic category queries such as ``相机`` must trust Goofish ranking because
+    legitimate titles often only contain a brand/model.  Tokens containing a
+    digit (G1, A7M4, iPhone15) are distinctive enough to validate locally.
+    """
+    title_text = normalize_search_token(title)
     tokens = []
     for raw_token in _TOKEN_SPLIT.split(str(keyword or "").strip().lower()):
         tokens.extend(_TOKEN_PARTS.findall(normalize_search_token(raw_token)))
     tokens = [token for token in tokens if token]
     if not title_text or not tokens:
         return False
-    for token in tokens:
-        if token.isascii() and token.isalnum():
-            # Model names are commonly glued to a brand (CONTAXG1), but must
-            # not let G1 match G10/G21. Plain words keep both boundaries.
-            has_digit = any(char.isdigit() for char in token)
-            haystack = title_text if has_digit else title_source
-            left_boundary = "" if has_digit else r"(?<![a-z0-9])"
-            if re.search(rf"{left_boundary}{re.escape(token)}(?![a-z0-9])", haystack) is None:
-                return False
-        elif token not in title_text:
+    model_tokens = [token for token in tokens if any(char.isdigit() for char in token)]
+    if not model_tokens:
+        return True
+    for token in model_tokens:
+        # Model names are commonly glued to a brand (CONTAXG1), but the right
+        # boundary prevents G1 from matching G10/G21.
+        if re.search(rf"{re.escape(token)}(?![a-z0-9])", title_text) is None:
             return False
     return True
 

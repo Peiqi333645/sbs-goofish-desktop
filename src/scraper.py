@@ -945,8 +945,8 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                     basic_items = filter_search_items(keyword, raw_items)
                     strict_match_count += len(basic_items)
                     log_time(
-                        f"[严格匹配] 第 {page_num}/{max_pages} 页返回 {len(raw_items)} 条，"
-                        f"标题命中 {len(basic_items)} 条，累计命中 {strict_match_count} 条。"
+                        f"[相关性筛选] 第 {page_num}/{max_pages} 页返回 {len(raw_items)} 条，"
+                        f"保留 {len(basic_items)} 条，累计命中 {strict_match_count} 条。"
                     )
                     if not basic_items:
                         if page_num < max_pages:
