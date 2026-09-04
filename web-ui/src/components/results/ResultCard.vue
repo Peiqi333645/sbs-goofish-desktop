@@ -30,6 +30,7 @@ const priceInsight = props.item.price_insight
 
 const isRecommended = ai?.is_recommended === true
 const recommendationStatus = computed(() => {
+  if (ai?.analysis_source === 'pending') return { label: t('results.card.pending'), color: 'bg-amber-500', icon: AlertCircle, text: 'text-amber-600', bg: 'bg-amber-50' }
   if (ai?.is_recommended === true) return { label: t('results.card.strongRecommend'), color: 'bg-emerald-500', icon: CheckCircle2, text: 'text-emerald-600', bg: 'bg-emerald-50' }
   if (ai?.is_recommended === false) return { label: t('results.card.notRecommended'), color: 'bg-rose-500', icon: XCircle, text: 'text-rose-600', bg: 'bg-rose-50' }
   return { label: t('results.card.pending'), color: 'bg-amber-500', icon: AlertCircle, text: 'text-amber-600', bg: 'bg-amber-50' }
@@ -39,7 +40,7 @@ const imageUrl = info.商品图片列表?.[0] || info.商品主图链接 || ''
 const crawlTime = props.item.爬取时间
   ? formatDateTime(props.item.爬取时间, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
   : t('common.unknown')
-const matchScore = ai?.value_score ?? 0
+const matchScore = ai?.value_score
 const isHidden = computed(() => props.item._effective_hidden === true || props.item._status === 'hidden')
 const isRuleHidden = computed(() => props.item._hidden_reason === 'rule')
 const canToggleBlock = computed(() => props.item._hidden_reason !== 'rule' && props.item._hidden_reason !== 'expired')
@@ -124,7 +125,7 @@ const expanded = ref(false)
           </div>
           <div class="flex items-center gap-1">
              <span class="text-[10px] font-medium uppercase tracking-wider text-slate-400">AI Match</span>
-             <span class="text-sm font-black" :class="recommendationStatus.text">{{ matchScore }}%</span>
+             <span class="text-sm font-black" :class="recommendationStatus.text">{{ matchScore == null ? '—' : `${matchScore}%` }}</span>
           </div>
         </div>
         
@@ -132,7 +133,7 @@ const expanded = ref(false)
           <div 
             class="h-full transition-all duration-1000 ease-out rounded-full" 
             :class="recommendationStatus.color"
-            :style="{ width: `${matchScore}%` }"
+            :style="{ width: `${matchScore ?? 0}%` }"
           ></div>
         </div>
 

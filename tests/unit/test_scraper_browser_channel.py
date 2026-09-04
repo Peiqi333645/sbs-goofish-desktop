@@ -25,3 +25,12 @@ def test_resolve_browser_channel_uses_msedge_locally_when_requested(monkeypatch)
     scraper = _load_scraper(monkeypatch, login_is_edge=True, running_in_docker=False)
 
     assert scraper._resolve_browser_channel() == "msedge"
+
+
+def test_default_context_matches_desktop_search_page(monkeypatch):
+    scraper = _load_scraper(monkeypatch, login_is_edge=False, running_in_docker=False)
+    options = scraper._default_context_options()
+    assert options["is_mobile"] is False
+    assert options["has_touch"] is False
+    assert options["viewport"]["width"] >= 1280
+    assert "geolocation" not in options

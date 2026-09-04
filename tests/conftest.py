@@ -59,6 +59,7 @@ class FakeProcessService:
         self.started = []
         self.stopped = []
         self.reindexed = []
+        self.manual_retries = []
         self._on_started = None
         self._on_stopped = None
 
@@ -71,6 +72,12 @@ class FakeProcessService:
         if self._on_started:
             await self._on_started(task_id)
         return True
+
+    def allow_manual_retry(self, task_name: str):
+        self.manual_retries.append(task_name)
+
+    def is_running(self, task_id: int):
+        return any(started_id == task_id for started_id, _ in self.started) and task_id not in self.stopped
 
     async def stop_task(self, task_id: int):
         self.stopped.append(task_id)

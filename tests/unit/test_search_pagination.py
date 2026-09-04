@@ -3,7 +3,9 @@ import asyncio
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from src.services.search_pagination import advance_search_page
+from src.services.search_pagination import capture_search_results_response
 from src.services.search_pagination import is_search_results_response
+from src.services.search_pagination import is_search_result_payload
 
 
 class FakeRequest:
@@ -12,10 +14,60 @@ class FakeRequest:
 
 
 class FakeResponse:
-    def __init__(self, url: str, ok: bool = True, method: str = "POST"):
+    def __init__(self, url: str, ok: bool = True, method: str = "POST", payload=None):
         self.url = url
         self.ok = ok
         self.request = FakeRequest(method)
+        self.payload = payload
+
+    async def json(self):
+        return self.payload or {"data": {"resultList": []}}
+
+
+def _product_payload(count: int = 3):
+    return {
+        "data": {
+            "resultList": [
+                {
+                    "data": {
+                        "item": {
+                            "main": {
+                                "exContent": {"itemId": str(index), "title": f"商品 {index}"},
+                                "targetUrl": f"fleamarket://item?id={index}",
+                            }
+                        }
+                    }
+                }
+                for index in range(count)
+            ]
+        }
+    }
+
+
+def test_capture_search_results_response_matches_payload_shape() -> None:
+    class ShapePage:
+        def on(self, _event, handler):
+            self.handler = handler
+
+        def remove_listener(self, _event, _handler):
+            return None
+
+    page = ShapePage()
+
+    async def action():
+        page.handler(FakeResponse("https://example.com/recommend", payload=_product_payload()))
+        page.handler(FakeResponse("https://example.com/new-search-api", method="GET", payload=_product_payload()))
+        await asyncio.sleep(0)
+
+    response = asyncio.run(
+        capture_search_results_response(page=page, action=action, timeout_ms=100)
+    )
+    assert response.url == "https://example.com/new-search-api"
+
+
+def test_search_payload_rejects_non_product_result_list() -> None:
+    assert is_search_result_payload(_product_payload()) is True
+    assert is_search_result_payload({"data": {"resultList": [{"name": "推荐词"}]}}) is False
 
 
 class FakeLocator:
@@ -91,6 +143,17 @@ async def _noop_sleep(_seconds: float) -> None:
     return None
 
 
+async def _fake_capture_response(*, page, action, timeout_ms, logger):
+    assert timeout_ms == 20000
+    await action()
+    if not page._outcomes:
+        raise AssertionError("missing fake response outcome")
+    outcome = page._outcomes.pop(0)
+    if isinstance(outcome, Exception):
+        raise outcome
+    return outcome
+
+
 def test_advance_search_page_stops_when_no_next_button() -> None:
     page = FakePage(next_button_count=0, outcomes=[])
     logs: list[str] = []
@@ -102,6 +165,7 @@ def test_advance_search_page_stops_when_no_next_button() -> None:
             logger=logs.append,
             wait_after_click=_noop_random_sleep,
             retry_sleep=_noop_sleep,
+            capture_response=_fake_capture_response,
         )
     )
 
@@ -129,6 +193,7 @@ def test_advance_search_page_stops_after_timeout_retries() -> None:
             logger=logs.append,
             wait_after_click=_noop_random_sleep,
             retry_sleep=_noop_sleep,
+            capture_response=_fake_capture_response,
         )
     )
 
@@ -156,6 +221,7 @@ def test_advance_search_page_returns_new_response_on_success() -> None:
             logger=lambda _message: None,
             wait_after_click=_noop_random_sleep,
             retry_sleep=_noop_sleep,
+            capture_response=_fake_capture_response,
         )
     )
 
@@ -182,6 +248,7 @@ def test_advance_search_page_stops_when_click_times_out() -> None:
             logger=logs.append,
             wait_after_click=_noop_random_sleep,
             retry_sleep=_noop_sleep,
+            capture_response=_fake_capture_response,
         )
     )
 
@@ -210,10 +277,10 @@ def test_is_search_results_response_rejects_search_shade_api() -> None:
     assert is_search_results_response(response) is False
 
 
-def test_is_search_results_response_rejects_non_post_request() -> None:
+def test_is_search_results_response_accepts_get_request() -> None:
     response = FakeResponse(
         url="https://h5api.m.goofish.com/h5/mtop.taobao.idlemtopsearch.pc.search/1.0/?foo=bar",
         method="GET",
     )
 
-    assert is_search_results_response(response) is False
+    assert is_search_results_response(response) is True

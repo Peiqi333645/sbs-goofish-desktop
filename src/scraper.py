@@ -50,6 +50,7 @@ from src.services.item_analysis_dispatcher import (
     ItemAnalysisDispatcher,
     ItemAnalysisJob,
 )
+from src.keyword_rule_engine import build_search_text, evaluate_keyword_rules
 from src.services.price_history_service import (
     build_market_reference,
     load_price_snapshots,
@@ -59,6 +60,7 @@ from src.services.result_storage_service import load_processed_link_keys
 from src.services.seller_profile_cache import SellerProfileCache
 from src.services.search_pagination import (
     advance_search_page,
+    capture_search_results_response,
     is_search_results_response,
 )
 
@@ -248,15 +250,13 @@ def _get_seller_profile_cache_ttl(task_config: dict) -> int:
 
 def _default_context_options() -> dict:
     return {
-        "user_agent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
-        "viewport": {"width": 412, "height": 915},
-        "device_scale_factor": 2.625,
-        "is_mobile": True,
-        "has_touch": True,
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "viewport": {"width": 1440, "height": 900},
+        "device_scale_factor": 1,
+        "is_mobile": False,
+        "has_touch": False,
         "locale": "zh-CN",
         "timezone_id": "Asia/Shanghai",
-        "permissions": ["geolocation"],
-        "geolocation": {"longitude": 121.4737, "latitude": 31.2304},
         "color_scheme": "light",
     }
 
@@ -471,6 +471,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
     historical_snapshots = load_price_snapshots(keyword)
     result_filename = build_result_filename(keyword)
     processed_links = load_processed_link_keys(keyword)
+    historical_links = set(processed_links)
     if processed_links:
         print(f"LOG: 发现已存在结果集 {result_filename}，已加载 {len(processed_links)} 个历史商品用于去重。")
     else:
@@ -537,6 +538,8 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
 
     async def _run_scrape_attempt(state_file: str, proxy_server: Optional[str]) -> int:
         processed_item_count = 0
+        discovered_item_count = 0
+        strict_match_count = 0
         stop_scraping = False
 
         if not os.path.exists(state_file):
@@ -655,20 +658,19 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                 log_time(f"目标URL: {search_url}")
 
                 # 先监听搜索接口响应，再执行导航，避免错过首次请求
-                async with page.expect_response(
-                    is_search_results_response, timeout=30000
-                ) as initial_response_info:
-                    await page.goto(
+                initial_response = await capture_search_results_response(
+                    page=page,
+                    action=lambda: page.goto(
                         search_url, wait_until="domcontentloaded", timeout=60000
-                    )
+                    ),
+                    timeout_ms=30000,
+                )
                 if _is_login_url(page.url):
                     raise LoginRequiredError(
                         f"Login required: redirected to {page.url} (cookies/state likely expired)"
                     )
 
                 # 捕获初始搜索的API数据
-                initial_response = await initial_response_info.value
-
                 # 等待页面加载出关键筛选元素，以确认已成功进入搜索结果页
                 try:
                     await page.wait_for_selector("text=新发布", timeout=15000)
@@ -936,11 +938,52 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                         log_time(f"第 {page_num} 页响应无效，跳过。")
                         continue
 
-                    basic_items = await _parse_search_results_json(
+                    raw_items = await _parse_search_results_json(
                         await current_response.json(), f"第 {page_num} 页"
                     )
+                    # 闲鱼搜索结果本身就是事实来源。不要再用标题包含关系二次删减，
+                    # 否则型号别名、套机和兼容配件会被误删。关键词规则仅负责推荐标记。
+                    basic_items = raw_items
+                    strict_match_count += len(basic_items)
+                    log_time(
+                        f"[搜索结果] 第 {page_num}/{max_pages} 页返回并保留 {len(basic_items)} 条，"
+                        f"累计获取 {strict_match_count} 条。"
+                    )
                     if not basic_items:
+                        if page_num < max_pages:
+                            continue
                         break
+                    # 搜索列表是事实来源。先完整保存基础商品，再进行详情和 AI 富化；
+                    # 详情超时、风控或 AI 失败都不能让搜索结果从界面消失。
+                    discovered_at = datetime.now().isoformat()
+                    newly_discovered_count = 0
+                    for discovered_item in basic_items:
+                        discovered_key = get_link_unique_key(discovered_item["商品链接"])
+                        if discovered_key in historical_links:
+                            continue
+                        await save_to_jsonl(
+                            {
+                                "爬取时间": discovered_at,
+                                "搜索关键字": keyword,
+                                "任务名称": task_config.get("task_name", "Untitled Task"),
+                                "商品信息": discovered_item,
+                                "卖家信息": {},
+                                "ai_analysis": {
+                                    "analysis_source": "pending",
+                                    "is_recommended": None,
+                                    "reason": "已发现，等待详情与分析。",
+                                    "keyword_hit_count": 0,
+                                },
+                            },
+                            keyword,
+                        )
+                        newly_discovered_count += 1
+                    discovered_item_count += newly_discovered_count
+                    log_time(
+                        f"第 {page_num} 页搜索接口返回 {len(basic_items)} 条；"
+                        f"新发现并保存 {newly_discovered_count} 条基础商品，"
+                        f"历史重复 {len(basic_items) - newly_discovered_count} 条。"
+                    )
                     historical_snapshots.extend(
                         record_market_snapshots(
                             keyword=keyword,
@@ -952,6 +995,41 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                         )
                     )
 
+                    # 关键词判断只依赖搜索列表文字。无需逐件打开详情页、抓取
+                    # 卖家商品和评价；立即完成判断并继续翻页，可将十页搜索从
+                    # 十几分钟缩短到主要由翻页请求决定的时间。
+                    if decision_mode == "keyword":
+                        for item_data in basic_items:
+                            unique_key = get_link_unique_key(item_data["商品链接"])
+                            if unique_key in historical_links:
+                                continue
+                            record = {
+                                "爬取时间": datetime.now().isoformat(),
+                                "搜索关键字": keyword,
+                                "任务名称": task_config.get("task_name", "Untitled Task"),
+                                "商品信息": item_data,
+                                "卖家信息": {},
+                            }
+                            record["ai_analysis"] = evaluate_keyword_rules(
+                                list(keyword_rules or []),
+                                build_search_text(record),
+                            )
+                            await save_to_jsonl(record, keyword)
+                            processed_links.add(unique_key)
+                            processed_item_count += 1
+                            if record["ai_analysis"].get("is_recommended"):
+                                await send_ntfy_notification(
+                                    item_data,
+                                    record["ai_analysis"].get("reason", "无"),
+                                )
+                        log_time(
+                            f"关键词快速判断完成，累计搜索获取 {strict_match_count} 条，"
+                            f"本次新增 {discovered_item_count} 条。"
+                        )
+                        if page_num < max_pages:
+                            await random_sleep(0.5, 1.2)
+                        continue
+
                     total_items_on_page = len(basic_items)
                     for i, item_data in enumerate(basic_items, 1):
                         if debug_limit > 0 and processed_item_count >= debug_limit:
@@ -962,7 +1040,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                             break
 
                         unique_key = get_link_unique_key(item_data["商品链接"])
-                        if unique_key in processed_links:
+                        if unique_key in historical_links:
                             log_time(
                                 f"[页内进度 {i}/{total_items_on_page}] 商品 '{item_data['商品标题'][:20]}...' 已存在，跳过。"
                             )
@@ -972,7 +1050,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                             f"[页内进度 {i}/{total_items_on_page}] 发现新商品，获取详情: {item_data['商品标题'][:30]}..."
                         )
                         # --- 修改: 访问详情页前的等待时间，模拟用户在列表页上看了一会儿 ---
-                        await random_sleep(2, 4)  # 原来是 (2, 4)
+                        await random_sleep(0.4, 0.9)
 
                         detail_page = await context.new_page()
                         try:
@@ -1110,7 +1188,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                                 log_time(
                                     "[反爬] 执行一次主要的随机延迟以模拟用户浏览间隔..."
                                 )
-                                await random_sleep(5, 10)
+                                await random_sleep(0.8, 1.8)
                             else:
                                 print(
                                     f"   错误: 获取商品详情API响应失败，状态码: {detail_response.status}"
@@ -1134,14 +1212,14 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                         finally:
                             await detail_page.close()
                             # --- 修改: 增加关闭页面后的短暂整理时间 ---
-                            await random_sleep(2, 4)  # 原来是 (1, 2.5)
+                            await random_sleep(0.3, 0.8)
 
                     # --- 新增: 在处理完一页所有商品后，翻页前，增加一个更长的“休息”时间 ---
                     if not stop_scraping and page_num < max_pages:
                         print(
                             f"--- 第 {page_num} 页处理完毕，准备翻页。执行一次页面间的长时休息... ---"
                         )
-                        await random_sleep(10, 15)
+                        await random_sleep(2, 4)
 
             except PlaywrightTimeoutError as e:
                 if _is_login_url(page.url):
@@ -1169,11 +1247,13 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                     await analysis_dispatcher.join()
                 log_time("任务执行完毕，浏览器将在5秒后自动关闭...")
                 await asyncio.sleep(5)
-                if debug_limit:
-                    input("按回车键关闭浏览器...")
                 await browser.close()
 
-        return processed_item_count
+        log_time(
+            f"本次搜索共获取 {strict_match_count} 条接口商品，"
+            f"新增保存 {discovered_item_count} 条，详情完成 {processed_item_count} 条。"
+        )
+        return discovered_item_count
 
     processed_item_count = 0
     attempt_limit = max(
@@ -1283,6 +1363,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
 
     if last_error:
         await _notify_task_failure(task_config, last_error, cookie_path=last_state_path)
+        raise RuntimeError(last_error)
 
     # 清理任务图片目录
     cleanup_task_images(task_config.get("task_name", "default"))
