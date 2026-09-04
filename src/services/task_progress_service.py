@@ -60,12 +60,14 @@ def build_task_progress(task: Any, *, is_running: bool) -> dict[str, Any]:
     elif failed:
         stage = "failed"
     elif completed:
-        stage = "completed"
+        stage = "completed" if page >= max_pages else "partial"
     else:
         stage = "idle"
 
     if stage == "completed":
         percent = 100
+    elif stage == "partial":
+        percent = round(min(99, max(1, (page / max_pages) * 100))) if max_pages else 0
     elif stage == "idle":
         percent = 0
     elif max_pages > 0:

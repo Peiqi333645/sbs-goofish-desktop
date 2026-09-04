@@ -20,6 +20,10 @@ PAGE_CLICK_SLEEP_MIN_SECONDS = 2
 PAGE_CLICK_SLEEP_MAX_SECONDS = 5
 
 
+class _PageClickTimeout(Exception):
+    pass
+
+
 def is_search_result_payload(payload: Any) -> bool:
     """Validate that resultList contains marketplace product cards."""
     if not isinstance(payload, dict):
@@ -141,6 +145,7 @@ async def advance_search_page(
     logger: Callable[[str], None] = log_time,
     wait_after_click: Callable[[float, float], Awaitable[None]] = random_sleep,
     retry_sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    capture_response: Callable[..., Awaitable[Any]] = capture_search_results_response,
     max_retries: int = PAGE_RETRY_COUNT,
 ) -> PageAdvanceResult:
     next_button = page.locator(NEXT_PAGE_SELECTOR).first
@@ -151,26 +156,29 @@ async def advance_search_page(
     for retry_index in range(max_retries):
         try:
             await next_button.scroll_into_view_if_needed()
-            async with page.expect_response(
-                is_search_results_response,
-                timeout=PAGE_REQUEST_TIMEOUT_MS,
-            ) as response_info:
+            async def click_next_page() -> None:
                 try:
                     await next_button.click(timeout=PAGE_CLICK_TIMEOUT_MS)
                 except PlaywrightTimeoutError:
                     logger(f"第 {page_num} 页下一页按钮点击超时，停止翻页。")
-                    return PageAdvanceResult(
-                        advanced=False,
-                        stop_reason="click_timeout",
-                    )
+                    raise _PageClickTimeout
+
+            response = await capture_response(
+                page=page,
+                action=click_next_page,
+                timeout_ms=PAGE_REQUEST_TIMEOUT_MS,
+                logger=logger,
+            )
             await wait_after_click(
                 PAGE_CLICK_SLEEP_MIN_SECONDS,
                 PAGE_CLICK_SLEEP_MAX_SECONDS,
             )
             return PageAdvanceResult(
                 advanced=True,
-                response=await response_info.value,
+                response=response,
             )
+        except _PageClickTimeout:
+            return PageAdvanceResult(advanced=False, stop_reason="click_timeout")
         except PlaywrightTimeoutError:
             if retry_index < max_retries - 1:
                 logger(

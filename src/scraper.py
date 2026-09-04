@@ -50,6 +50,7 @@ from src.services.item_analysis_dispatcher import (
     ItemAnalysisDispatcher,
     ItemAnalysisJob,
 )
+from src.keyword_rule_engine import build_search_text, evaluate_keyword_rules
 from src.services.price_history_service import (
     build_market_reference,
     load_price_snapshots,
@@ -537,6 +538,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
 
     async def _run_scrape_attempt(state_file: str, proxy_server: Optional[str]) -> int:
         processed_item_count = 0
+        discovered_item_count = 0
         strict_match_count = 0
         stop_scraping = False
 
@@ -976,6 +978,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                             keyword,
                         )
                         newly_discovered_count += 1
+                    discovered_item_count += newly_discovered_count
                     log_time(
                         f"第 {page_num} 页搜索接口返回 {len(basic_items)} 条；"
                         f"新发现并保存 {newly_discovered_count} 条基础商品，"
@@ -991,6 +994,41 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                             seen_item_ids=history_seen_item_ids,
                         )
                     )
+
+                    # 关键词判断只依赖搜索列表文字。无需逐件打开详情页、抓取
+                    # 卖家商品和评价；立即完成判断并继续翻页，可将十页搜索从
+                    # 十几分钟缩短到主要由翻页请求决定的时间。
+                    if decision_mode == "keyword":
+                        for item_data in basic_items:
+                            unique_key = get_link_unique_key(item_data["商品链接"])
+                            if unique_key in historical_links:
+                                continue
+                            record = {
+                                "爬取时间": datetime.now().isoformat(),
+                                "搜索关键字": keyword,
+                                "任务名称": task_config.get("task_name", "Untitled Task"),
+                                "商品信息": item_data,
+                                "卖家信息": {},
+                            }
+                            record["ai_analysis"] = evaluate_keyword_rules(
+                                list(keyword_rules or []),
+                                build_search_text(record),
+                            )
+                            await save_to_jsonl(record, keyword)
+                            processed_links.add(unique_key)
+                            processed_item_count += 1
+                            if record["ai_analysis"].get("is_recommended"):
+                                await send_ntfy_notification(
+                                    item_data,
+                                    record["ai_analysis"].get("reason", "无"),
+                                )
+                        log_time(
+                            f"关键词快速判断完成，累计搜索获取 {strict_match_count} 条，"
+                            f"本次新增 {discovered_item_count} 条。"
+                        )
+                        if page_num < max_pages:
+                            await random_sleep(0.5, 1.2)
+                        continue
 
                     total_items_on_page = len(basic_items)
                     for i, item_data in enumerate(basic_items, 1):
@@ -1211,7 +1249,11 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                 await asyncio.sleep(5)
                 await browser.close()
 
-        return processed_item_count
+        log_time(
+            f"本次搜索共获取 {strict_match_count} 条接口商品，"
+            f"新增保存 {discovered_item_count} 条，详情完成 {processed_item_count} 条。"
+        )
+        return discovered_item_count
 
     processed_item_count = 0
     attempt_limit = max(

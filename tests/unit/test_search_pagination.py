@@ -143,6 +143,17 @@ async def _noop_sleep(_seconds: float) -> None:
     return None
 
 
+async def _fake_capture_response(*, page, action, timeout_ms, logger):
+    assert timeout_ms == 20000
+    await action()
+    if not page._outcomes:
+        raise AssertionError("missing fake response outcome")
+    outcome = page._outcomes.pop(0)
+    if isinstance(outcome, Exception):
+        raise outcome
+    return outcome
+
+
 def test_advance_search_page_stops_when_no_next_button() -> None:
     page = FakePage(next_button_count=0, outcomes=[])
     logs: list[str] = []
@@ -154,6 +165,7 @@ def test_advance_search_page_stops_when_no_next_button() -> None:
             logger=logs.append,
             wait_after_click=_noop_random_sleep,
             retry_sleep=_noop_sleep,
+            capture_response=_fake_capture_response,
         )
     )
 
@@ -181,6 +193,7 @@ def test_advance_search_page_stops_after_timeout_retries() -> None:
             logger=logs.append,
             wait_after_click=_noop_random_sleep,
             retry_sleep=_noop_sleep,
+            capture_response=_fake_capture_response,
         )
     )
 
@@ -208,6 +221,7 @@ def test_advance_search_page_returns_new_response_on_success() -> None:
             logger=lambda _message: None,
             wait_after_click=_noop_random_sleep,
             retry_sleep=_noop_sleep,
+            capture_response=_fake_capture_response,
         )
     )
 
@@ -234,6 +248,7 @@ def test_advance_search_page_stops_when_click_times_out() -> None:
             logger=logs.append,
             wait_after_click=_noop_random_sleep,
             retry_sleep=_noop_sleep,
+            capture_response=_fake_capture_response,
         )
     )
 

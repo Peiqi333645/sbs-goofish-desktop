@@ -81,6 +81,7 @@ const zhCN = {
     progressScraping: '采集中',
     progressAnalyzing: '分析中',
     progressCompleted: '已完成',
+    progressPartial: '提前结束',
     progressFailed: '失败',
     progressIdle: '等待中',
     pageProgress: '第 {current}/{total} 页',

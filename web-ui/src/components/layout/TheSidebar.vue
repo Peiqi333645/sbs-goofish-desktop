@@ -34,6 +34,7 @@ function stageLabel(progress: TaskProgress) {
   if (progress.stage === 'scraping') return t('sidebar.progressScraping')
   if (progress.stage === 'analyzing') return t('sidebar.progressAnalyzing')
   if (progress.stage === 'completed') return t('sidebar.progressCompleted')
+  if (progress.stage === 'partial') return t('sidebar.progressPartial')
   if (progress.stage === 'failed') return t('sidebar.progressFailed')
   return t('sidebar.progressIdle')
 }
@@ -73,10 +74,10 @@ onUnmounted(() => progressTimer && clearInterval(progressTimer))
           <div v-for="progress in taskProgress" :key="progress.task_id" class="rounded-xl border border-white/[.07] bg-white/[.04] px-3 py-2.5">
             <div class="flex items-center justify-between gap-2">
               <span class="truncate text-[11px] font-bold text-white/70">{{ progress.task_name }}</span>
-              <span class="shrink-0 text-[9px] font-bold" :class="progress.stage === 'failed' ? 'text-rose-400' : progress.is_running ? 'text-primary' : 'text-white/30'">{{ stageLabel(progress) }}</span>
+              <span class="shrink-0 text-[9px] font-bold" :class="['failed', 'partial'].includes(progress.stage) ? 'text-rose-400' : progress.is_running ? 'text-primary' : 'text-white/30'">{{ stageLabel(progress) }}</span>
             </div>
             <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[.07]">
-              <div class="h-full rounded-full transition-all duration-500" :class="progress.stage === 'failed' ? 'bg-rose-400' : 'bg-gradient-to-r from-primary/70 to-primary'" :style="{ width: `${progress.percent}%` }"></div>
+              <div class="h-full rounded-full transition-all duration-500" :class="['failed', 'partial'].includes(progress.stage) ? 'bg-rose-400' : 'bg-gradient-to-r from-primary/70 to-primary'" :style="{ width: `${progress.percent}%` }"></div>
             </div>
             <div class="mt-1.5 flex items-center justify-between text-[9px] text-white/35">
               <span>{{ t('sidebar.pageProgress', { current: progress.page || 0, total: progress.max_pages }) }}</span>

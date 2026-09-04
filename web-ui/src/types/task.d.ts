@@ -30,7 +30,7 @@ export interface TaskProgress {
   task_name: string;
   keyword: string;
   is_running: boolean;
-  stage: 'idle' | 'scraping' | 'analyzing' | 'completed' | 'failed';
+  stage: 'idle' | 'scraping' | 'analyzing' | 'completed' | 'partial' | 'failed';
   percent: number;
   page: number;
   max_pages: number;

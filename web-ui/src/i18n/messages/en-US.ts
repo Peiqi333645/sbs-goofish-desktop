@@ -81,6 +81,7 @@ const enUS = {
     progressScraping: 'Collecting',
     progressAnalyzing: 'Analyzing',
     progressCompleted: 'Completed',
+    progressPartial: 'Stopped early',
     progressFailed: 'Failed',
     progressIdle: 'Waiting',
     pageProgress: 'Page {current}/{total}',
